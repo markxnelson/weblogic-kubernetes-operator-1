@@ -810,10 +810,16 @@ class DomainSeedGenerator(Generator):
     for file in files:
       file_name = os.path.join(dir,file)
       if os.path.isfile(file_name):
-        if os.path.dirname(file_name) in self.skiplist:
-          continue
-        ziph.write(file_name)
-        trace('writing ' + str(file_name))
+        fdir = os.path.dirname(file_name)
+        skip = false
+        for skipdir in self.skiplist:
+          if fdir.find(skipdir) == 0:
+            trace('skipping ' + file_name)
+            skip = true
+            break
+        if not skip:
+          ziph.write(file_name)
+          trace('writing ' + file_name)
 
 
 class InventoryMD5Generator(Generator):
