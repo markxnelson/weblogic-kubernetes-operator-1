@@ -50,7 +50,7 @@ spec:
       value: "-XX:+UseContainerSupport -Djava.security.egd=file:/dev/./urandom "
     - name: WDT_DOMAIN_TYPE
       value: "@@DOMTYPE@@"
-    #   value: "JRF"
+    #   value: "WLS"
     #   value: "RestrictedJRF"
     #
     # volumes:

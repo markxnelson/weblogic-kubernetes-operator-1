@@ -164,11 +164,12 @@ function copySitCfg() {
 
 
 if [ -f /weblogic-operator/introspector/domainzip.secure ]; then
-  cd / && base64 -d /weblogic-operator/introspector/domainzip.secure > /tmp/domain.zip && jar xvf /tmp/domain.zip
+#  cd / && base64 -d /weblogic-operator/introspector/domainzip.secure > /tmp/domain.zip.gz && gunzip /tmp/domain.zip.gz && jar xvf /tmp/domain.zip
+  cd / && base64 -d /weblogic-operator/introspector/domainzip.secure > /tmp/domain.tar.gz && tar -xzvf /tmp/domain.tar.gz
   # zip does not store external attributes - should we use find ?
   chmod +x ${DOMAIN_HOME}/bin/*.sh ${DOMAIN_HOME}/*.sh
   # unzip the domainlib from archive
-  for fh in /u01/model_home/archives/*.zip ; do
+  for fh in /u01/wdt/models/*.zip ; do
     mkdir -p ${DOMAIN_HOME}/lib && cd ${DOMAIN_HOME}/lib
     jar xvf ${fh} wlsdeploy/domainLibraries
     cd ${DOMAIN_HOME}

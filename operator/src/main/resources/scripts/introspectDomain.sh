@@ -138,7 +138,7 @@ function createWLDomain() {
 
     model_list=""
     archive_list=""
-    variable_list="${model_home}/variables/_k8s_generated_props.properties"
+    variable_list="${model_home}/_k8s_generated_props.properties"
 
     # in case retry
     if [ -f ${variable_list} ] ; then
@@ -223,7 +223,7 @@ function createWLDomain() {
     # something changed in the wdt artifacts
     if  [ ${create_domain} -ne 0 ] ; then
 
-        trace "Need to create domain"
+        trace "Need to create domain " ${WDT_DOMAIN_TYPE}
         export __WLSDEPLOY_STORE_MODEL__=1
 
         # We need to run wdt create to get a new merged model
@@ -232,13 +232,13 @@ function createWLDomain() {
         if [ -z "${WDT_DOMAIN_TYPE}" ] ; then
             WDT_DOMAIN_TYPE=WLS
         fi
-        trace "Run wdt create domain"
+        trace "Run wdt create domain " ${WDT_DOMAIN_TYPE}
 
         if [ $use_passphrase -eq 1 ]; then
-            yes ${wdt_passphrase} | /u01/weblogic-deploy/bin/createDomain.sh -oracle_home $MW_HOME -domain_home \
+            yes ${wdt_passphrase} | ${wdt_bin}/createDomain.sh -oracle_home $MW_HOME -domain_home \
             $DOMAIN_HOME $model_list $archive_list $variable_list -use_encryption -domain_type ${WDT_DOMAIN_TYPE}
         else
-            /u01/weblogic-deploy/bin/createDomain.sh -oracle_home $MW_HOME -domain_home $DOMAIN_HOME $model_list \
+            ${wdt_bin}/createDomain.sh -oracle_home $MW_HOME -domain_home $DOMAIN_HOME $model_list \
             $archive_list $variable_list  -domain_type ${WDT_DOMAIN_TYPE}
         fi
         ret=$?
@@ -335,10 +335,11 @@ inventory_merged_model="/weblogic-operator/introspectormd5/merged_model.json"
 domain_zipped="/weblogic-operator/introspectormd5/domainzip.secure"
 wdt_config_root="/weblogic-operator/wdt-config-map"
 wdt_secret_path="/weblogic-operator/wdt-config-map-secrets"
-model_home="/u01/model_home"
-model_root="${model_home}/models"
-archive_root="${model_home}/archives"
-variable_root="${model_home}/variables"
+model_home="/u01/wdt/models"
+model_root="${model_home}"
+archive_root="${model_home}"
+variable_root="${model_home}"
+wdt_bin="/u01/wdt/weblogic-deploy/bin"
 operator_md5=$DOMAIN_HOME/operatormd5
 archive_zip_changed=0
 

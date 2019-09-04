@@ -2,18 +2,19 @@
 
 This sample demonstrates how to specify a domain model to use in an image for the operator. This allows the WebLogic domain to be created from the model in the image automatically.  The domain model format is described in the [WebLogic Deloy Tool](https://github.com/oracle/weblogic-deploy-tooling).
 
-## Steps in creating a domain model in image
+## High level steps in creating a domain model in image
 
-1. Obtain a base WebLogic image either from [Docker Hub](https://github.com/oracle/docker-images/tree/master/OracleWebLogic) or create one using [WebLogic Image Tool](https://github.com/oracle/weblogic-image-tool)
+1. Create a deployable image with the WebLogic Server installed and put all the WebLogic Deploy Tool artifacts in structure described in step 2.  You can use the image from [Docker Hub](https://github.com/oracle/docker-images/tree/master/OracleWebLogic) or create one using [WebLogic Image Tool](https://github.com/oracle/weblogic-image-tool)
 
 2. In the image, create the following structures and place the `WebLogic Deploy Tool``` artifacts
 
 | directory | contents |
 |-----------|----------|
-| /u01/model_home/models| domain model yaml files |
-| /u01/model_home/variables | model variable files |
-| /u01/model_home/archives | deployment archive |
-
+| /u01/wdt/models| domain model yaml files |
+|                | model variable files |
+|                | deployment archive |
+| ---------------| -----------|
+| /u01/wdt/webloic-deploy |   unzip weblogic deploy installer location|
 
 4. Optionally create a config map
 
@@ -28,7 +29,7 @@ In a directory ```/home/acmeuser/wdtoverride```, place additional models and var
 
 ```WebLogic Deploy Tool``` allows you to encrypt sensitive information in the model.  If you model is using this feature, you need to create a secret to store the encryption passphrase.  The passphrase will be used for domain creation.  The secret can named anything but it must have a key ```wdtpassword```
 
-```kubectl -n sample-domain1-ns create secret generic simple-domain1-wdt-secret --from-literal=wdtpassword=welcome1```
+```kubectl -n sample-domain1-ns create secret generic sample-domain1-wdt-secret --from-literal=wdtpassword=welcome1```
 
 
 6. Update the domain resource yaml file
@@ -37,7 +38,16 @@ If you have addtional models or encryption secret, you can add the following key
 
 ```
 wdtConfigMap : wdt-config-map
-wdtConfigMapSecret : simple-domain1-wdt-secret
+wdtConfigMapSecret : sample-domain1-wdt-secret
+```
+
+Specify one of the domain type if it is not WLS
+
+```
+  serverPod:
+    env:
+    - name: WDT_DOMAIN_TYPE
+      value: "WLS|JRF|RestrictedJRF"
 ```
 
 ## Naming convention of model files
@@ -79,36 +89,135 @@ Prerequsite:
   sample-weblogic-operator \
   kubernetes/charts/weblogic-operator
 ```
+3. The image for deployment must have tar and gzip package installed
 
 1. Create a temporary directory with 10g space
 2. Go to edelivery.oracle.com
     - search for Oracle JRE
     - click on JRE 1.8.0_221 to add it to the shopping cart
+    - click on V982783-01.zip to download the zip files 
     - search for Oracle WebLogic Server again
     - click on Oracle WebLogic Server 12.2.1.3.0 (Oracle WebLogic Server Enterprise Edition)
     - click on Checkout
     - click continue and accept license agreement 
-    - click on V982783-01.zip and V886243-01.zip to download the zip files 
+    - click on V886243-01.zip to download the zip files 
+    - click on Oracle Fusion Middleware 12c Infrastructure 12.2.1.3.0)
+    - click on Checkout
+    - click continue and accept license agreement 
+    - click on V886246-01.zip to download the zip files 
+
     (Oracle Fusion Middleware 12c (12.2.1.3.0) WebLogic Server and Coherence, 800.1 MB)
+    (Oracle Fusion Middleware 12c (12.2.1.3.0) Infrastructure, 1.5 GB)
     (Oracle SERVER JRE 1.8.0.221 media upload for Linux x86-64, 52.5 MB)
-3. Copy V982783-01.zip and V886243-01.zip to the temporary directory
-4. Run ./build.sh <full path to the temporary directory in step 1> <oracle support id capable to download patches> <password for the support id>
+3. Copy V982783-01.zip and V886243-01.zip or V886246-01.zip to the temporary directory
+4. Run ./build.sh <full path to the temporary directory in step 1> <oracle support id capable to download patches> <password for the support id> <domain type: WLS|RestrictedJRF|JRF>
 
 5. Wait for it to finish
-6. At the end, you will see the message "Getting pod status - ctrl-c when all is running and ready to exit"
-7. Once all the pods are up, you can ctrl-c to exit the build script.
-8. Run ```kubectl apply -f nginx.yaml```
-9. Run ```kubectl cluster-info``` and make a note of the cluster ip address
-10. Run curl -kL http://<cluster ip>/sample_war/index.jsp, you should see something like:
+
+
+6. Create the Kubernetes resources by ```./k8sdomain.sh```
+7. At the end, you will see the message "Getting pod status - ctrl-c when all is running and ready to exit"
+8. Once all the pods are up, you can ctrl-c to exit the build script.
+
+
+Optionally, you can install nginx to test the sample application
+
+9. Install the nginx ingress controller in your environment For example:
+```
+helm install --name acmecontroller stable/nginx-ingress \
+--namespace sample-domain1-ns \
+--set controller.name=acme \
+--set defaultBackend.enabled=true \
+--set defaultBackend.name=acmedefaultbackend \
+--set rbac.create=true
+```
+10. Install the ingress rule ```kubectl apply -f nginx.yaml```
+11. kubectl --namespace sample-domain1-ns get services -o wide -w acmecontroller-nginx-ingress-acme
+12. Note the ```EXTERNAL-IP```
+13. Run curl -kL http://```EXTERNAL-IP```/sample_war/index.jsp, you should see something like:
 ```Hello World, you have reached server managed-server1```
 
 
+## Running the example for JRF domain
+
+JRF domain requires an infrastructure database.  This example shows how to setup a sample database,
+modify the WebLogic Deploy Tool Model to provide database connection information, and steps to create the infrastructure schema.
 
 
+Since JRF domain creation take considerable time, you should increase the timeout for the introspection job.
+
+```
+kubectl -n <operation namespace> edit configmap weblogic-operator-cm 
+```
+
+and add the parameter ```introspectorJobActiveDeadlineSeconds```  default is 120s.  Use 300s to start with.
 
 
+1. Use the browser to login to https://container-registry.oracle.com, select ```database->enterprise`` and 
+accept the license agreement
+2. In command shell, ```docker login container-registry.oracle.com```
+3. kubectl apply -f db-slim.yaml
+4. Repeat the above steps 1-5, make sure use the domain type ```JRF```  in step 4
+5. Start a terminal by ```kubectl run rcu -i --tty  --image model-in-image:x0 --restart=Never -- sh```
+6. Create the rcu schema by the command.  ```Oradoc_db1 is the dba password and welcome1 is the schema password```
+
+```
+/u01/oracle/oracle_common/bin/rcu \
+  -silent \
+  -createRepository \
+  -databaseType ORACLE \
+  -connectString  oracle-db.sample-domain1-ns.svc.cluster.local:1521/pdb1.k8s \
+  -dbUser sys \
+  -dbRole sysdba \
+  -useSamePasswordForAllSchemaUsers true \
+  -selectDependentsForComponents true \
+  -schemaPrefix FMW1 \
+  -component MDS \
+  -component IAU \
+  -component IAU_APPEND \
+  -component IAU_VIEWER \
+  -component OPSS  \
+  -component WLS  \
+  -component STB <<EOF
+Oradoc_db1
+welcome1
+EOF
+```
+7. ctrl-d to exit the terminal
+8. Delete the terminal pod by ```kubectl delete pod rcu```
+9. Repeat the above steps 6-8 to create the Kubernetes resources
+
+Note:  If you need to drop the repository, you can use this command in the terminal
+
+```
+/u01/oracle/oracle_common/bin/rcu \
+  -silent \
+  -dropRepository \
+  -databaseType ORACLE \
+  -connectString  oracle-db.sample-domain1-ns.svc.cluster.local:1521/pdb1.k8s \
+  -dbUser sys \
+  -dbRole sysdba \
+  -schemaPrefix FMW1 \
+  -component MDS \
+  -component IAU \
+  -component IAU_APPEND \
+  -component IAU_VIEWER \
+  -component OPSS  \
+  -component WLS  \
+  -component STB <<EOF
+Oradoc_db1
+EOF
+```
 
 
+## Cleanup 
+
+From the WebLogic Kubernetes Operator cloned root directory
+
+1.  ```kubernetes/samples/scripts/delete-domain/delete-weblogic-domain-resources.sh -d domain1```
+2.  ```kubectl delete configmap wdt-config-map -n sample-domain1-ns```
+3.  ```kubectl delete secret sample-domain1-weblogic-credentials -n sample-domain1-ns```
+4.  Drop the rcu schema
 
 
 
